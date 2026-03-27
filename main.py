@@ -247,4 +247,4 @@ st.dataframe(pd.DataFrame(trans_mat))
 with st.expander("⚙️ Debug Info"):
     st.write("Data shape:", df.shape)
     st.write("Feature shape:", X.shape)
-    st.write("Means:", means)s
+    st.write("Means:", means)
