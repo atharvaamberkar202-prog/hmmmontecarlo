@@ -1,0 +1,208 @@
+import streamlit as st
+import numpy as np
+import pandas as pd
+import yfinance as yf
+from hmmlearn.hmm import GaussianHMM
+from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+
+st.set_page_config(layout="wide")
+
+st.title("📊 NIFTY 50 HMM + Monte Carlo Dashboard")
+
+# =============================
+# REFRESH BUTTON
+# =============================
+if "run_model" not in st.session_state:
+    st.session_state.run_model = False
+
+if st.button("🔄 Refresh / Recalculate"):
+    st.session_state.run_model = True
+
+# Stop execution until button is pressed
+if not st.session_state.run_model:
+    st.info("Click 'Refresh / Recalculate' to run the model.")
+    st.stop()
+
+# =============================
+# PARAMETERS
+# =============================
+TICKER = "^NSEI"
+N_STATES = 3
+SIMULATIONS = 20000
+STEPS = 1
+LOOKBACK_YEARS = 5
+
+# =============================
+# DATE HANDLING
+# =============================
+today = datetime.today()
+end_date = today - timedelta(days=1)
+start_date = end_date - timedelta(days=365 * LOOKBACK_YEARS)
+
+st.write(f"📅 Data Range: {start_date.date()} → {end_date.date()}")
+
+# =============================
+# FETCH DATA
+# =============================
+df = yf.download(
+    TICKER,
+    start=start_date.strftime("%Y-%m-%d"),
+    end=end_date.strftime("%Y-%m-%d")
+)
+
+df = df[['Close']].dropna()
+
+# =============================
+# RETURNS & FEATURES
+# =============================
+df['returns'] = np.log(df['Close'] / df['Close'].shift(1))
+df['vol'] = df['returns'].rolling(10).std()
+df['mom'] = df['returns'].rolling(5).mean()
+
+df = df.dropna()
+
+X = df[['returns', 'vol', 'mom']].values
+
+# =============================
+# TRAIN HMM
+# =============================
+model = GaussianHMM(
+    n_components=N_STATES,
+    covariance_type="full",
+    n_iter=1000,
+    random_state=42
+)
+
+model.fit(X)
+
+hidden_states = model.predict(X)
+df['state'] = hidden_states
+
+means = model.means_[:, 0]
+variances = model.covars_[:, 0, 0]
+stds = np.sqrt(variances)
+trans_mat = model.transmat_
+
+# =============================
+# LABEL REGIMES
+# =============================
+sorted_idx = np.argsort(means)
+bear_regime = sorted_idx[0]
+neutral_regime = sorted_idx[1]
+bull_regime = sorted_idx[2]
+
+# =============================
+# CURRENT STATE
+# =============================
+current_state = df['state'].iloc[-1]
+
+# =============================
+# MONTE CARLO
+# =============================
+sim_returns = []
+
+for _ in range(SIMULATIONS):
+    state = current_state
+    total_return = 0
+    
+    for _ in range(STEPS):
+        r = np.random.normal(means[state], stds[state])
+        total_return += r
+        
+        state = np.random.choice(range(N_STATES), p=trans_mat[state])
+    
+    sim_returns.append(total_return)
+
+sim_returns = np.array(sim_returns)
+
+# =============================
+# CLASSIFICATION
+# =============================
+volatility = df['returns'].std()
+
+UP_TH = volatility * 0.5
+DOWN_TH = -volatility * 0.5
+
+up = np.mean(sim_returns > UP_TH)
+neutral_up = np.mean((sim_returns > 0) & (sim_returns <= UP_TH))
+neutral_down = np.mean((sim_returns < 0) & (sim_returns >= DOWN_TH))
+down = np.mean(sim_returns < DOWN_TH)
+
+# =============================
+# SIGNAL
+# =============================
+bullish_prob = up + neutral_up
+bearish_prob = down + neutral_down
+
+if bullish_prob > 0.6:
+    signal = "BULLISH"
+elif bearish_prob > 0.6:
+    signal = "BEARISH"
+else:
+    signal = "SIDEWAYS"
+
+# =============================
+# UI LAYOUT
+# =============================
+col1, col2, col3 = st.columns(3)
+
+# REGIME
+with col1:
+    st.subheader("📌 Current Regime")
+    if current_state == bull_regime:
+        st.success("BULL")
+    elif current_state == bear_regime:
+        st.error("BEAR")
+    else:
+        st.warning("SIDEWAYS")
+
+# SIGNAL
+with col2:
+    st.subheader("📊 Signal")
+    if signal == "BULLISH":
+        st.success(signal)
+    elif signal == "BEARISH":
+        st.error(signal)
+    else:
+        st.warning(signal)
+
+# EXPECTED RETURN
+with col3:
+    st.subheader("📈 Expected Return")
+    st.metric(label="Log Return", value=round(np.mean(sim_returns), 6))
+
+# =============================
+# PROBABILITIES
+# =============================
+st.subheader("🔮 Next Session Probabilities")
+
+prob_df = pd.DataFrame({
+    "State": ["UP", "NEUTRAL_UP", "NEUTRAL_DOWN", "DOWN"],
+    "Probability": [up, neutral_up, neutral_down, down]
+})
+
+st.bar_chart(prob_df.set_index("State"))
+
+# =============================
+# REGIME PLOT
+# =============================
+st.subheader("📉 Regime Detection")
+
+fig, ax = plt.subplots()
+
+for i in range(N_STATES):
+    ax.plot(df[df['state'] == i].index,
+            df[df['state'] == i]['Close'],
+            '.', label=f'Regime {i}')
+
+ax.plot(df['Close'], alpha=0.3)
+ax.legend()
+
+st.pyplot(fig)
+
+# =============================
+# TRANSITION MATRIX
+# =============================
+st.subheader("🔁 Transition Matrix")
+st.dataframe(pd.DataFrame(trans_mat))
