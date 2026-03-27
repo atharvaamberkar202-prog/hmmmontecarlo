@@ -166,17 +166,17 @@ with st.spinner("Running full model..."):
     down = np.mean(sim_returns < DOWN_TH)
 
     # =========================================
-    # SIGNAL
+    # ARGMAX SIGNAL (FIXED)
     # =========================================
-    bullish_prob = up + neutral_up
-    bearish_prob = down + neutral_down
+    prob_dict = {
+        "UP": up,
+        "NEUTRAL_UP": neutral_up,
+        "NEUTRAL_DOWN": neutral_down,
+        "DOWN": down
+    }
 
-    if bullish_prob > 0.6:
-        signal = "BULLISH"
-    elif bearish_prob > 0.6:
-        signal = "BEARISH"
-    else:
-        signal = "SIDEWAYS"
+    signal_state = max(prob_dict, key=prob_dict.get)
+    signal = signal_state
 
 # =========================================
 # UI
@@ -194,13 +194,8 @@ with col1:
         st.warning("SIDEWAYS")
 
 with col2:
-    st.subheader("📊 Signal")
-    if signal == "BULLISH":
-        st.success(signal)
-    elif signal == "BEARISH":
-        st.error(signal)
-    else:
-        st.warning(signal)
+    st.subheader("📊 Signal (Most Probable)")
+    st.info(signal)
 
 with col3:
     st.subheader("📈 Expected Return")
@@ -248,3 +243,4 @@ with st.expander("⚙️ Debug Info"):
     st.write("Data shape:", df.shape)
     st.write("Feature shape:", X.shape)
     st.write("Means:", means)
+    st.write("Probabilities:", prob_dict)
