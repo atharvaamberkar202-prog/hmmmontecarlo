@@ -244,3 +244,20 @@ with st.expander("⚙️ Debug Info"):
     st.write("Feature shape:", X.shape)
     st.write("Means:", means)
     st.write("Probabilities:", prob_dict)
+
+# =========================================
+# SMALL DATA PREVIEW SECTION
+# =========================================
+st.subheader("🧾 Data Snapshot (First 3 & Last 3 Columns)")
+
+with st.expander("📂 View Selected Columns", expanded=False):
+
+    col_a, col_b = st.columns(2)
+
+    with col_a:
+        st.caption("First 3 Columns")
+        st.dataframe(df.iloc[:, :3].tail(10), use_container_width=True)
+
+    with col_b:
+        st.caption("Last 3 Columns")
+        st.dataframe(df.iloc[:, -3:].tail(10), use_container_width=True)
