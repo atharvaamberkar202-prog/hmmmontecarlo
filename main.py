@@ -246,18 +246,15 @@ with st.expander("⚙️ Debug Info"):
     st.write("Probabilities:", prob_dict)
 
 # =========================================
-# SMALL DATA PREVIEW SECTION
+# DATA PREVIEW (FIRST & LAST ROWS)
 # =========================================
-st.subheader("🧾 Data Snapshot (First 3 & Last 3 Columns)")
+st.subheader("🔍 Data Preview")
 
-with st.expander("📂 View Selected Columns", expanded=False):
+# Get first 3 and last 3 rows
+preview_df = pd.concat([df.head(3), df.tail(3)])
 
-    col_a, col_b = st.columns(2)
+# Optional: reset index for clean display
+preview_df = preview_df.reset_index()
 
-    with col_a:
-        st.caption("First 3 Columns")
-        st.dataframe(df.iloc[:, :3].tail(10), use_container_width=True)
-
-    with col_b:
-        st.caption("Last 3 Columns")
-        st.dataframe(df.iloc[:, -3:].tail(10), use_container_width=True)
+# Display in compact form
+st.dataframe(preview_df, use_container_width=True, height=200)
