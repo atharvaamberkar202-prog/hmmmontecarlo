@@ -257,4 +257,4 @@ preview_df = pd.concat([df.head(3), df.tail(3)])
 preview_df = preview_df.reset_index()
 
 # Display in compact form
-st.dataframe(preview_df, use_container_width=True, height=200)
+st.dataframe(preview_df, use_container_width=True, height=400)
